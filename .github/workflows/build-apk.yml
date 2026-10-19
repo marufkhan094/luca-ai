@@ -29,8 +29,6 @@ jobs:
       - name: Install Android SDK packages
         run: |
           sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
-          
-          accept-android-sdk-licenses: true
 
 
       - name: Set up Gradle
