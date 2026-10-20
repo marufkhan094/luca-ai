@@ -51,7 +51,11 @@ jobs:
             exit 1
           fi
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-
+      
+      - name: Enable AndroidX
+        run: |
+          find . -name gradle.properties -type f -exec sh -c 'grep -qxF "android.useAndroidX=true" "$1" || echo "android.useAndroidX=true" >> "$1"' _ {} \;
+      
       - name: Build Debug APK
         run: gradle -p "$PROJECT_DIR" assembleDebug --stacktrace
 
