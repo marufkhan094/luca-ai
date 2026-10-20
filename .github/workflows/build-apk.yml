@@ -100,6 +100,24 @@ jobs:
           echo "Gradle configuration:"
           cat "$FILE"
 
+
+      - name: Create missing Android XML resource
+        shell: bash
+        run: |
+          mkdir -p "$PROJECT_DIR/app/src/main/res/xml"
+          cat > "$PROJECT_DIR/app/src/main/res/xml/data_extraction_rules.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <data-extraction-rules>
+              <cloud-backup>
+                  <exclude domain="root" path="no_backup"/>
+              </cloud-backup>
+              <device-transfer>
+                  <exclude domain="root" path="no_backup"/>
+              </device-transfer>
+          </data-extraction-rules>
+          EOF
+          
+
       - name: Build Debug APK
         shell: bash
         run: |
