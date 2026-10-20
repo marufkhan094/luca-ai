@@ -44,37 +44,35 @@ jobs:
         shell: bash
         run: |
           set -e
-
           mkdir -p extracted
 
           ZIP_FILE="$(find . -maxdepth 1 -type f -iname '*.zip' -print -quit)"
 
           if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: Repository root-e kono ZIP file nei."
+            echo "ERROR: Android project ZIP not found."
             exit 1
           fi
 
-          echo "ZIP found: $ZIP_FILE"
           unzip -o -q "$ZIP_FILE" -d extracted
 
           SETTINGS_FILE="$(find extracted -type f \( -name 'settings.gradle.kts' -o -name 'settings.gradle' \) -print -quit)"
 
           if [ -z "$SETTINGS_FILE" ]; then
-            echo "ERROR: settings.gradle or settings.gradle.kts paoa jayni."
+            echo "ERROR: Gradle settings file not found."
             exit 1
           fi
 
           PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
 
           if [ ! -f "$PROJECT_DIR/app/build.gradle.kts" ] && [ ! -f "$PROJECT_DIR/app/build.gradle" ]; then
-            echo "ERROR: App module-er build.gradle file paoa jayni."
+            echo "ERROR: App Gradle file not found."
             exit 1
           fi
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Android project: $PROJECT_DIR"
+          echo "Project directory: $PROJECT_DIR"
 
-      - name: Enable AndroidX
+      - name: Configure AndroidX and Gradle memory
         shell: bash
         run: |
           set -e
@@ -82,25 +80,38 @@ jobs:
           FILE="$PROJECT_DIR/gradle.properties"
           touch "$FILE"
 
-          grep -qxF 'android.useAndroidX=true' "$FILE" || \
-            echo 'android.useAndroidX=true' >> "$FILE"
+          set_property() {
+            KEY="$1"
+            VALUE="$2"
 
-          grep -qxF 'android.enableJetifier=true' "$FILE" || \
-            echo 'android.enableJetifier=true' >> "$FILE"
+            if grep -q "^${KEY}=" "$FILE"; then
+              sed -i "s|^${KEY}=.*|${KEY}=${VALUE}|" "$FILE"
+            else
+              echo "${KEY}=${VALUE}" >> "$FILE"
+            fi
+          }
 
-          echo "AndroidX configuration:"
+          set_property "android.useAndroidX" "true"
+          set_property "android.enableJetifier" "true"
+          set_property "org.gradle.jvmargs" "-Xms256m -Xmx2048m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8"
+          set_property "org.gradle.workers.max" "2"
+          set_property "org.gradle.parallel" "false"
+
+          echo "Gradle configuration:"
           cat "$FILE"
 
       - name: Build Debug APK
         shell: bash
         run: |
           set -e
+
           gradle -p "$PROJECT_DIR" \
             --no-daemon \
+            --max-workers=2 \
             assembleDebug \
             --stacktrace
 
-      - name: Check APK
+      - name: Find APK
         shell: bash
         run: |
           set -e
@@ -108,18 +119,19 @@ jobs:
           APK_FILE="$(find "$PROJECT_DIR" -type f -path '*/build/outputs/apk/debug/*.apk' -print -quit)"
 
           if [ -z "$APK_FILE" ]; then
-            echo "ERROR: APK file তৈরি হয়নি."
+            echo "ERROR: APK was not generated."
             exit 1
           fi
 
           echo "APK successfully created:"
           ls -lh "$APK_FILE"
+          echo "APK_FILE=$APK_FILE" >> "$GITHUB_ENV"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: HeyLuka-Debug-APK
-          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
+          path: ${{ env.APK_FILE }}
           if-no-files-found: error
           retention-days: 14
           
